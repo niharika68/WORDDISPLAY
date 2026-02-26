@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "worddisplay"
+version = "0.1.0"
+description = ""
+authors = ["Niharika68 <nihapat2@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.9"
+pandas = "^2.0"
+xlsxwriter = "^3.1"
+python-docx = "^1.1"
+matplotlib = "^3.7"
+openpyxl = "^3.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

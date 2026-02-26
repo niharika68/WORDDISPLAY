@@ -17,8 +17,7 @@ dist/
 build/
 *.egg-info/
 
-# Output files
-output/
+
 
 # IDE
 .idea/

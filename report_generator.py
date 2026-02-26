@@ -23,6 +23,9 @@ OUTPUT_DIR = Path(__file__).parent / "output"
 EXCEL_FILE = OUTPUT_DIR / "Enterprise_Report.xlsx"
 SUMMARY_IMAGE = OUTPUT_DIR / "summary.png"
 ORDERS_IMAGE = OUTPUT_DIR / "orders.png"
+CHART_TOP_NDC_SPEND = OUTPUT_DIR / "chart_top_ndc_spend.png"
+CHART_SAVINGS_BY_MONTH = OUTPUT_DIR / "chart_savings_by_month.png"
+CHART_TOP_NDC_PIE = OUTPUT_DIR / "chart_top_ndc_pie.png"
 WORD_FILE = OUTPUT_DIR / "Final_Report.docx"
 
 
@@ -366,14 +369,127 @@ def _create_table_image(
     plt.close()
 
 
-def create_word_document(summary_image: str, orders_image: str) -> str:
+def create_charts(orders_df: pd.DataFrame, summary_df: pd.DataFrame) -> dict:
+    """
+    Create visualization charts from the procurement data.
+    
+    Args:
+        orders_df: Orders DataFrame.
+        summary_df: Summary DataFrame.
+        
+    Returns:
+        Dictionary with paths to all chart images.
+    """
+    import matplotlib.pyplot as plt
+    import matplotlib
+    matplotlib.use('Agg')
+    
+    # Set style for professional look
+    plt.style.use('seaborn-v0_8-whitegrid')
+    
+    # Color palette matching our green theme
+    primary_color = '#217346'
+    secondary_colors = ['#217346', '#2E9B5F', '#45B778', '#6FCF97', '#A8E6CF']
+    
+    charts = {}
+    
+    # Chart 1: Top 5 NDC by Spend (Horizontal Bar Chart)
+    fig, ax = plt.subplots(figsize=(10, 6))
+    # Group by NDC and Drug name for better labels
+    ndc_spend = orders_df.groupby(['NDC', 'Drug'])['Order Value'].sum().reset_index()
+    ndc_spend['Label'] = ndc_spend['Drug'] + '\n(' + ndc_spend['NDC'] + ')'
+    top_5_ndc = ndc_spend.nlargest(5, 'Order Value').sort_values('Order Value', ascending=True)
+    
+    bars = ax.barh(top_5_ndc['Label'], top_5_ndc['Order Value'], color=secondary_colors[::-1])
+    ax.set_xlabel('Total Spend ($)', fontsize=11)
+    ax.set_title('Top 5 NDC by Spend', fontsize=14, fontweight='bold', pad=15)
+    ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'${x:,.0f}'))
+    
+    # Add value labels on bars
+    for bar, value in zip(bars, top_5_ndc['Order Value']):
+        ax.text(value + max(top_5_ndc['Order Value']) * 0.01, bar.get_y() + bar.get_height()/2, 
+                f'${value:,.0f}', va='center', fontsize=10, fontweight='bold')
+    
+    plt.tight_layout()
+    plt.savefig(str(CHART_TOP_NDC_SPEND), dpi=150, bbox_inches='tight', 
+                facecolor='white', edgecolor='none')
+    plt.close()
+    charts['top_ndc_spend'] = str(CHART_TOP_NDC_SPEND)
+    print(f"✓ Chart created: Top 5 NDC Spend")
+    
+    # Chart 2: Monthly Savings (Bar Chart)
+    fig, ax = plt.subplots(figsize=(10, 6))
+    summary_sorted = summary_df.sort_values('Month')
+    
+    # Color bars based on positive (green) or negative (red) savings
+    colors = [primary_color if s >= 0 else '#DC3545' for s in summary_sorted['Savings $']]
+    bars = ax.bar(summary_sorted['Month'], summary_sorted['Savings $'], color=colors)
+    
+    ax.set_xlabel('Month', fontsize=11)
+    ax.set_ylabel('Savings ($)', fontsize=11)
+    ax.set_title('Monthly Savings vs Previous Period', fontsize=14, fontweight='bold', pad=15)
+    ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'${x:,.0f}'))
+    ax.axhline(y=0, color='gray', linestyle='-', linewidth=0.5)
+    plt.xticks(rotation=45, ha='right')
+    
+    # Add value labels on bars
+    for bar, pct in zip(bars, summary_sorted['Savings %']):
+        height = bar.get_height()
+        label = f'${height:,.0f}\n({pct:+.1f}%)'
+        va = 'bottom' if height >= 0 else 'top'
+        ax.text(bar.get_x() + bar.get_width()/2., height, label, 
+                ha='center', va=va, fontsize=9, fontweight='bold')
+    
+    plt.tight_layout()
+    plt.savefig(str(CHART_SAVINGS_BY_MONTH), dpi=150, bbox_inches='tight', 
+                facecolor='white', edgecolor='none')
+    plt.close()
+    charts['savings_by_month'] = str(CHART_SAVINGS_BY_MONTH)
+    print(f"✓ Chart created: Monthly Savings")
+    
+    # Chart 3: Top 5 NDC Spend Distribution (Pie Chart)
+    fig, ax = plt.subplots(figsize=(10, 8))
+    ndc_spend = orders_df.groupby(['NDC', 'Drug'])['Order Value'].sum().reset_index()
+    top_5 = ndc_spend.nlargest(5, 'Order Value')
+    
+    # Create labels with NDC
+    labels = [f"{row['Drug']}\n({row['NDC']})" for _, row in top_5.iterrows()]
+    
+    wedges, texts, autotexts = ax.pie(
+        top_5['Order Value'], 
+        labels=labels,
+        autopct=lambda pct: f'${pct/100*sum(top_5["Order Value"]):,.0f}\n({pct:.1f}%)',
+        colors=secondary_colors,
+        explode=[0.02] * 5,
+        startangle=90,
+        textprops={'fontsize': 9}
+    )
+    
+    # Style the percentage labels
+    for autotext in autotexts:
+        autotext.set_fontweight('bold')
+        autotext.set_fontsize(9)
+    
+    ax.set_title('Top 5 NDC Spend Distribution', fontsize=14, fontweight='bold', pad=15)
+    
+    plt.tight_layout()
+    plt.savefig(str(CHART_TOP_NDC_PIE), dpi=150, bbox_inches='tight', 
+                facecolor='white', edgecolor='none')
+    plt.close()
+    charts['top_ndc_pie'] = str(CHART_TOP_NDC_PIE)
+    print(f"✓ Chart created: Top 5 NDC Pie Chart")
+    
+    return charts
+
+
+def create_word_document(summary_image: str, orders_image: str, charts: dict = None) -> str:
     """
     Create a Word document with the report.
     
     Args:
         summary_image: Path to summary screenshot.
         orders_image: Path to orders screenshot.
-        
+        charts: Dictionary of chart image paths.
     Returns:
         Path to the created Word document.
     """
@@ -423,6 +539,52 @@ def create_word_document(summary_image: str, orders_image: str) -> str:
         last_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
     else:
         doc.add_paragraph("[Orders image not found]")
+    
+    # Visualizations Section
+    if charts:
+        doc.add_page_break()
+        doc.add_heading("Visualizations & Analytics", level=1)
+        doc.add_paragraph(
+            "The following charts provide visual insights into NDC spending patterns "
+            "and savings trends across the reporting period."
+        )
+        doc.add_paragraph()
+        
+        # Top 5 NDC Spend Bar Chart
+        if 'top_ndc_spend' in charts and os.path.exists(charts['top_ndc_spend']):
+            doc.add_heading("Top 5 NDC by Spend", level=2)
+            doc.add_paragraph(
+                "This chart shows the top 5 National Drug Codes (NDC) ranked by total spend, "
+                "helping identify high-cost medications for contract negotiations and formulary review."
+            )
+            doc.add_picture(charts['top_ndc_spend'], width=Inches(6))
+            last_para = doc.paragraphs[-1]
+            last_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            doc.add_paragraph()
+        
+        # Monthly Savings Chart
+        if 'savings_by_month' in charts and os.path.exists(charts['savings_by_month']):
+            doc.add_heading("Monthly Savings", level=2)
+            doc.add_paragraph(
+                "This chart displays the savings achieved each month compared to the previous period. "
+                "Green bars indicate savings, while red bars indicate cost increases."
+            )
+            doc.add_picture(charts['savings_by_month'], width=Inches(6))
+            last_para = doc.paragraphs[-1]
+            last_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            doc.add_paragraph()
+        
+        # Top 5 NDC Pie Chart
+        if 'top_ndc_pie' in charts and os.path.exists(charts['top_ndc_pie']):
+            doc.add_heading("Top 5 NDC Spend Distribution", level=2)
+            doc.add_paragraph(
+                "Pie chart showing the distribution of spend across the top 5 NDC codes, "
+                "illustrating the concentration of pharmacy procurement costs."
+            )
+            doc.add_picture(charts['top_ndc_pie'], width=Inches(5.5))
+            last_para = doc.paragraphs[-1]
+            last_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            doc.add_paragraph()
     
     # Add footer note
     doc.add_paragraph()
@@ -475,9 +637,14 @@ def generate_full_report() -> dict:
     summary_image, orders_image = create_excel_screenshots(excel_path)
     print()
     
-    # Step 4: Create Word document
-    print("Step 4: Creating Word document...")
-    word_path = create_word_document(summary_image, orders_image)
+    # Step 4: Create visualization charts
+    print("Step 4: Creating visualization charts...")
+    charts = create_charts(orders_df, summary_df)
+    print()
+    
+    # Step 5: Create Word document
+    print("Step 5: Creating Word document...")
+    word_path = create_word_document(summary_image, orders_image, charts)
     print()
     
     # Summary
@@ -490,12 +657,16 @@ def generate_full_report() -> dict:
     print(f"  • {EXCEL_FILE.name}")
     print(f"  • {SUMMARY_IMAGE.name}")
     print(f"  • {ORDERS_IMAGE.name}")
+    print(f"  • {CHART_TOP_NDC_SPEND.name}")
+    print(f"  • {CHART_SAVINGS_BY_MONTH.name}")
+    print(f"  • {CHART_TOP_NDC_PIE.name}")
     print(f"  • {WORD_FILE.name}")
     
     return {
         "excel": excel_path,
         "summary_image": summary_image,
         "orders_image": orders_image,
+        "charts": charts,
         "word": word_path,
     }
 

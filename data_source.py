@@ -34,18 +34,18 @@ PHARMACIES = [
 ]
 
 DRUGS = [
-    ("Amoxicillin 500mg", 12.50, 150),
-    ("Lisinopril 10mg", 8.75, 200),
-    ("Metformin 850mg", 6.25, 300),
-    ("Omeprazole 20mg", 15.00, 180),
-    ("Atorvastatin 40mg", 22.50, 120),
-    ("Amlodipine 5mg", 9.00, 250),
-    ("Metoprolol 50mg", 11.25, 175),
-    ("Losartan 100mg", 18.75, 140),
-    ("Gabapentin 300mg", 14.00, 160),
-    ("Sertraline 50mg", 10.50, 190),
-    ("Hydrochlorothiazide 25mg", 5.50, 280),
-    ("Pantoprazole 40mg", 16.25, 130),
+    ("Amoxicillin 500mg", "00093-3109-01", 12.50, 150),
+    ("Lisinopril 10mg", "00378-1043-01", 8.75, 200),
+    ("Metformin 850mg", "00591-2477-01", 6.25, 300),
+    ("Omeprazole 20mg", "62175-0261-37", 15.00, 180),
+    ("Atorvastatin 40mg", "00378-3952-77", 22.50, 120),
+    ("Amlodipine 5mg", "00093-5056-01", 9.00, 250),
+    ("Metoprolol 50mg", "00378-0134-01", 11.25, 175),
+    ("Losartan 100mg", "00093-7368-01", 18.75, 140),
+    ("Gabapentin 300mg", "59762-5002-01", 14.00, 160),
+    ("Sertraline 50mg", "00093-7198-01", 10.50, 190),
+    ("Hydrochlorothiazide 25mg", "00378-0025-01", 5.50, 280),
+    ("Pantoprazole 40mg", "00093-0108-01", 16.25, 130),
 ]
 
 SAVINGS_INDICATORS = [
@@ -85,8 +85,8 @@ def _generate_orders_data(num_records: int = 100) -> pd.DataFrame:
     
     orders = []
     for _ in range(num_records):
-        # Select random drug with base price and typical units
-        drug_name, base_price, typical_units = random.choice(DRUGS)
+        # Select random drug with NDC, base price and typical units
+        drug_name, ndc, base_price, typical_units = random.choice(DRUGS)
         
         # Add some variation to price and units
         price = round(base_price * random.uniform(0.9, 1.1), 2)
@@ -96,6 +96,7 @@ def _generate_orders_data(num_records: int = 100) -> pd.DataFrame:
             "Hospital": random.choice(HOSPITALS),
             "Pharmacy": random.choice(PHARMACIES),
             "Drug": drug_name,
+            "NDC": ndc,
             "Price": price,
             "Units": units,
             "Date Ordered": _generate_random_date(start_date, end_date),
@@ -144,11 +145,21 @@ def _generate_summary_data(orders_df: pd.DataFrame) -> pd.DataFrame:
     # Round total spend
     summary["Total Spend"] = summary["Total Spend"].round(2)
     
-    # Add savings indicator (synthetic)
+    # Add savings values (synthetic - percentage and dollar amount)
     random.seed(123)
-    summary["Savings Indicator"] = [
-        random.choice(SAVINGS_INDICATORS) for _ in range(len(summary))
-    ]
+    savings_percentages = []
+    savings_amounts = []
+    for spend in summary["Total Spend"]:
+        # Generate random savings between -5% and +15%
+        pct = random.uniform(-5, 15)
+        savings_percentages.append(round(pct, 1))
+        savings_amounts.append(round(spend * abs(pct) / 100, 2))
+    
+    summary["Savings %"] = savings_percentages
+    summary["Savings $"] = savings_amounts
+    summary["Savings Indicator"] = summary["Savings %"].apply(
+        lambda x: f"Saved {x}% vs last month" if x > 0 else f"Costs increased {abs(x)}%" if x < 0 else "Costs stable"
+    )
     
     # Sort by month descending
     summary = summary.sort_values("Month", ascending=False).reset_index(drop=True)

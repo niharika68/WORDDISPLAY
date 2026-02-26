@@ -50,7 +50,8 @@ def create_excel_report(summary_df: pd.DataFrame, orders_df: pd.DataFrame) -> st
         # Define formats
         header_format = workbook.add_format({
             "bold": True,
-            "bg_color": "#B8CCE4",  # Light blue
+            "bg_color": "#217346",  # Dark green (Excel green)
+            "font_color": "#FFFFFF",  # White text
             "border": 1,
             "text_wrap": True,
             "valign": "vcenter",
@@ -114,10 +115,11 @@ def create_excel_report(summary_df: pd.DataFrame, orders_df: pd.DataFrame) -> st
             number_format=number_format,
             currency_cols=["Price", "Order Value"],
             number_cols=["Units"],
-            conditional_col="Invoiced",
-            green_format=green_format,
-            red_format=red_format,
         )
+        
+        # Set green tab colors for both sheets
+        writer.sheets["Summary"].set_tab_color("#00B050")
+        writer.sheets["Orders"].set_tab_color("#00B050")
     
     print(f"✓ Excel report created: {excel_path}")
     return excel_path
@@ -281,8 +283,7 @@ def _create_dataframe_images() -> tuple:
         df=orders_df.head(25),  # Show first 25 rows
         output_path=orders_path,
         title="Orders",
-        currency_cols=["Price", "Order Value"],
-        highlight_col="Invoiced"
+        currency_cols=["Price", "Order Value"]
     )
     print(f"✓ Orders screenshot created: {orders_path}")
     
@@ -331,7 +332,7 @@ def _create_table_image(
         colLabels=df_display.columns,
         cellLoc='center',
         loc='center',
-        colColours=['#B8CCE4'] * n_cols  # Light blue headers
+        colColours=['#217346'] * n_cols  # Dark green headers
     )
     
     # Style the table
@@ -342,8 +343,8 @@ def _create_table_image(
     # Style header row
     for j in range(n_cols):
         cell = table[(0, j)]
-        cell.set_text_props(weight='bold')
-        cell.set_facecolor('#B8CCE4')
+        cell.set_text_props(weight='bold', color='white')
+        cell.set_facecolor('#217346')
     
     # Apply conditional formatting for highlight column
     if highlight_col and highlight_col in df.columns:
